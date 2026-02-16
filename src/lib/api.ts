@@ -8,20 +8,26 @@ export interface Ad {
     created_at: string;
 }
 
-// Updated Video interface to include ad management
+// Updated Video interface to match actual database schema
 export interface Video {
     id: string;
     title: string;
     description: string;
     video_url: string;
     thumbnail_url: string;
-    category: string;
+    category: string; // We'll map category_id to category for display
+    category_id?: number;
     status: 'pending' | 'approved' | 'rejected';
     created_at: string;
-    views?: number;
+    view_count?: number; // Changed from 'views' to match DB
+    views?: number; // Keep for backward compatibility
     created_by?: string;
+    uploader_id?: string;
     ads_enabled?: boolean;
     preroll_ad_id?: string | null;
+    duration_seconds?: number | null;
+    resolution?: string;
+    is_featured?: boolean;
 }
 
 export interface VideoUploadData {
@@ -61,6 +67,18 @@ async function uploadFile(bucket: string, path: string, file: File): Promise<str
     }
 }
 
+// Category mapping (based on your database)
+const CATEGORY_MAP: Record<number, string> = {
+    1: 'Movies',
+    2: 'Music',
+    3: 'Tech',
+    4: 'Comedy',
+    5: 'Drama',
+    6: 'Action',
+    7: 'Documentary',
+    8: 'African',
+};
+
 // --- 1. FETCH VIDEOS (VIEWER) ---
 export async function fetchVideos() {
     try {
@@ -74,7 +92,13 @@ export async function fetchVideos() {
 
         if (!response.ok) return [];
         const data = await response.json();
-        return data as Video[];
+
+        // Map database response to our interface
+        return data.map((video: any) => ({
+            ...video,
+            category: video.category_id ? CATEGORY_MAP[video.category_id] || 'Other' : 'Other',
+            views: video.view_count || 0, // Map view_count to views for backward compatibility
+        })) as Video[];
     } catch (e) {
         console.error("Fetch error:", e);
         return [];
@@ -189,11 +213,11 @@ export async function searchVideos(query: string) {
 // --- 7. INCREMENT VIEWS ---
 export async function incrementView(videoId: string) {
     try {
-        const getRes = await fetch(`${SUPABASE_URL}/rest/v1/videos?id=eq.${videoId}&select=views`, {
+        const getRes = await fetch(`${SUPABASE_URL}/rest/v1/videos?id=eq.${videoId}&select=view_count`, {
             headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
         });
         const current = await getRes.json();
-        const newViews = (current[0]?.views || 0) + 1;
+        const newViews = (current[0]?.view_count || 0) + 1;
 
         await fetch(`${SUPABASE_URL}/rest/v1/videos?id=eq.${videoId}`, {
             method: 'PATCH',
@@ -202,7 +226,7 @@ export async function incrementView(videoId: string) {
                 'Authorization': `Bearer ${SUPABASE_KEY}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ views: newViews })
+            body: JSON.stringify({ view_count: newViews })
         });
     } catch (e) {
         console.error("View increment failed", e);
