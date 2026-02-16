@@ -256,6 +256,7 @@ export default function WatchPage() {
     const [loading, setLoading] = useState(true);
     const [adUrl, setAdUrl] = useState<string | undefined>(undefined);
 
+    // First useEffect - fetch all videos
     useEffect(() => {
         fetchVideos().then(data => {
             setVideos(data);
@@ -263,10 +264,11 @@ export default function WatchPage() {
         });
     }, []);
 
-    if (loading) return <div style={{ color: 'white', padding: 20 }}>Loading...</div>;
-
+    // Find the video (do this before the second useEffect)
     const video = videos.find(v => v.id === id);
 
+    // Second useEffect - increment views and load ads
+    // This MUST come before any conditional returns
     useEffect(() => {
         if (video) {
             import('./lib/api').then(mod => mod.incrementView(video.id));
@@ -281,6 +283,11 @@ export default function WatchPage() {
             }
         }
     }, [video, tier]);
+
+    // NOW we can do conditional returns (after all hooks)
+    if (loading) {
+        return <div style={{ color: 'white', padding: 20 }}>Loading...</div>;
+    }
 
     if (!video) {
         return <div style={{ color: 'white', padding: 20 }}>Video not found.</div>;
