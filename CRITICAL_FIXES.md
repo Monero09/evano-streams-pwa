@@ -36,6 +36,13 @@
 - Logo.png is now used everywhere (favicon, PWA icons, navbar, search)
 - Removed old unused icon files
 
+### 4. ✅ React Error #310 Fix (WatchPage Crash)
+**Error:** `Uncaught Error: Minified React error #310` (Rendered fewer hooks than expected)
+
+**Root Cause:** `WatchPage.tsx` had a conditional return (`if (loading) return...`) *before* a `useEffect` hook. This violates React Hook rules and causes the app to crash when loading completes.
+
+**Solution:** Moved the conditional return to be **after** all Hook calls. Now all hooks run on every render, preventing the crash.
+
 ## Test Results:
 
 **Database Query Successful:**
