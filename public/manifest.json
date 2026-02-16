@@ -8,14 +8,15 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/logo.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "462x462"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/logo.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "462x462",
+      "purpose": "any maskable"
     }
   ]
 }

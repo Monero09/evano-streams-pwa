@@ -49,7 +49,7 @@ export default function SearchPage() {
             {/* HEADER */}
             <header>
                 <div className="logo">
-                    <div className="logo-icon">E</div>
+                    <img src="/logo.png" alt="Evano Streams Logo" className="logo-icon" />
                     <span>EVANO STREAMS</span>
                 </div>
                 <button className="close-btn" onClick={handleClose}>

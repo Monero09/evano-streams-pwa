@@ -46,7 +46,7 @@ export default function HomePage() {
             {/* Navigation Bar */}
             <nav className="navbar">
                 <div className="navbar-logo">
-                    <div className="navbar-logo-icon">E</div>
+                    <img src="/logo.png" alt="Evano Streams Logo" className="navbar-logo-icon" />
                     <span>EVANO STREAMS</span>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
