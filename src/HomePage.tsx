@@ -1,27 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './components/AuthProvider';
-import { fetchVideos, type Video } from './lib/api';
+import { fetchVideos, getWatchLater, getWatchHistory, deleteMyAccount, type Video } from './lib/api';
 
 export default function HomePage() {
     const navigate = useNavigate();
     const { user, role, logout } = useAuth();
     const [videos, setVideos] = useState<Video[]>([]);
+    const [watchLaterList, setWatchLaterList] = useState<Video[]>([]);
+    const [historyList, setHistoryList] = useState<Video[]>([]);
     const [loading, setLoading] = useState(true);
     const [showUserMenu, setShowUserMenu] = useState(false);
 
     useEffect(() => {
-        loadVideos();
-    }, []);
+        loadData();
+    }, [user]);
 
-    const loadVideos = async () => {
-        const data = await fetchVideos();
-        setVideos(data);
+    const loadData = async () => {
+        setLoading(true);
+        const allVideos = await fetchVideos();
+        setVideos(allVideos);
+
+        if (user) {
+            const [wl, hist] = await Promise.all([
+                getWatchLater(user.id),
+                getWatchHistory(user.id)
+            ]);
+            setWatchLaterList(wl);
+            setHistoryList(hist);
+        }
         setLoading(false);
     };
 
     // Separate hero video from list
-    const heroVideo = videos.length > 0 ? videos[0] : null; // Just pick first as hero for now
+    const heroVideo = videos.length > 0 ? videos[0] : null;
     const videoList = videos.length > 0 ? videos.slice(1) : [];
 
     const handleWatch = (id: string) => {
@@ -37,9 +49,41 @@ export default function HomePage() {
         window.location.reload();
     };
 
+    const handleDeleteAccount = async () => {
+        if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+            try {
+                await deleteMyAccount();
+                await logout();
+                alert("Account deleted.");
+                window.location.reload();
+            } catch (e) {
+                console.error(e);
+                alert("Failed to delete account. Please try again.");
+            }
+        }
+    };
 
+    if (loading && !videos.length) return <div style={{ color: 'white', padding: 20, textAlign: 'center' }}>Loading...</div>;
 
-    if (loading) return <div style={{ color: 'white', padding: 20, textAlign: 'center' }}>Loading videos...</div>;
+    const VideoRow = ({ title, list }: { title: string, list: Video[] }) => {
+        if (!list || list.length === 0) return null;
+        return (
+            <section className="videos-section" style={{ marginBottom: 30 }}>
+                <h2 className="section-title" style={{ fontSize: 18, marginBottom: 15, borderLeft: '4px solid #FF6A00', paddingLeft: 10 }}>{title}</h2>
+                <div className="videos-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 15 }}>
+                    {list.map((vid) => (
+                        <div key={vid.id} className="video-card" onClick={() => handleWatch(String(vid.id))}>
+                            <div className="video-thumbnail" style={{ height: 100 }}>
+                                <img src={vid.thumbnail_url} alt={vid.title} style={{ objectFit: 'cover' }} />
+                            </div>
+                            <h3 className="video-title" style={{ fontSize: 13, marginTop: 8 }}>{vid.title}</h3>
+                            <p className="video-channel" style={{ fontSize: 11 }}>{vid.category}</p>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        );
+    };
 
     return (
         <div className="home-body" onClick={() => showUserMenu && setShowUserMenu(false)}>
@@ -104,15 +148,15 @@ export default function HomePage() {
                                 position: 'absolute',
                                 top: '120%',
                                 right: 0,
-                                background: '#222',
-                                border: '1px solid #444',
+                                background: '#111',
+                                border: '1px solid #333',
                                 borderRadius: 8,
-                                width: 200,
+                                width: 220,
                                 zIndex: 1000,
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
                                 overflow: 'hidden'
                             }} onClick={(e) => e.stopPropagation()}>
-                                <div style={{ padding: '12px 16px', borderBottom: '1px solid #333', fontSize: 12, color: '#aaa' }}>
+                                <div style={{ padding: '12px 16px', borderBottom: '1px solid #333', fontSize: 12, color: '#aaa', background: '#1a1a1a' }}>
                                     Signed in as <br />
                                     <strong style={{ color: 'white', fontSize: 14 }}>{user.email}</strong>
                                 </div>
@@ -124,36 +168,41 @@ export default function HomePage() {
                                         style={{
                                             padding: '12px 16px',
                                             cursor: 'pointer',
-                                            color: '#FF6A00',
+                                            color: '#FFD700',
                                             fontWeight: 'bold',
                                             borderBottom: '1px solid #333',
-                                            transition: 'background 0.2s'
+                                            display: 'flex', alignItems: 'center', gap: 8
                                         }}
-                                        onMouseOver={(e) => e.currentTarget.style.background = '#333'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                        className="menu-item"
                                     >
-                                        ⭐ Go Premium
+                                        <span>💎</span> Go Premium
                                     </div>
                                 )}
 
                                 {(role === 'admin' || role === 'creator') && (
                                     <div
                                         onClick={() => role === 'admin' ? navigate('/admin') : navigate('/creator')}
-                                        style={{ padding: '12px 16px', cursor: 'pointer', color: 'white', transition: 'background 0.2s' }}
-                                        onMouseOver={(e) => e.currentTarget.style.background = '#333'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                        style={{ padding: '12px 16px', cursor: 'pointer', color: 'white' }}
+                                        className="menu-item"
                                     >
-                                        Dashboard
+                                        📊 Dashboard
                                     </div>
                                 )}
 
                                 <div
                                     onClick={handleLogout}
-                                    style={{ padding: '12px 16px', cursor: 'pointer', color: '#ff4d4d', borderTop: '1px solid #333', transition: 'background 0.2s' }}
-                                    onMouseOver={(e) => e.currentTarget.style.background = '#333'}
-                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                    style={{ padding: '12px 16px', cursor: 'pointer', color: 'white', borderTop: '1px solid #333' }}
+                                    className="menu-item"
                                 >
-                                    Log Out
+                                    🚪 Log Out
+                                </div>
+
+                                <div
+                                    onClick={handleDeleteAccount}
+                                    style={{ padding: '12px 16px', cursor: 'pointer', color: '#ff4444', borderTop: '1px solid #333', fontSize: 12 }}
+                                    className="menu-item"
+                                >
+                                    ⚠️ Delete Account
                                 </div>
                             </div>
                         )}
@@ -174,6 +223,15 @@ export default function HomePage() {
                             <h1 className="hero-title">{heroVideo.title}</h1>
                             <p className="hero-subtitle">{heroVideo.description}</p>
                             <button className="hero-button" onClick={() => handleWatch(heroVideo.id)}>Watch Now</button>
+                            {user && (
+                                <button
+                                    className="hero-button"
+                                    style={{ background: 'rgba(255,255,255,0.2)', marginLeft: 10 }}
+                                    onClick={() => handleWatch(heroVideo.id)}
+                                >
+                                    + My List
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -181,9 +239,17 @@ export default function HomePage() {
                 {/* Feature Strip */}
                 <div className="feature-strip"></div>
 
+                {/* My Lists */}
+                {user && (
+                    <>
+                        <VideoRow title="Continue Watching" list={historyList} />
+                        <VideoRow title="My List" list={watchLaterList} />
+                    </>
+                )}
+
                 {/* Videos Section */}
                 <section className="videos-section">
-                    <h2 className="section-title">Videos</h2>
+                    <h2 className="section-title">All Videos</h2>
                     {videoList.length === 0 && !heroVideo ? (
                         <p style={{ color: '#888' }}>No videos available.</p>
                     ) : (
@@ -202,7 +268,11 @@ export default function HomePage() {
                 </section>
             </div>
 
-
+            <style>{`
+                .menu-item:hover {
+                    background-color: #333;
+                }
+            `}</style>
         </div>
     );
 }

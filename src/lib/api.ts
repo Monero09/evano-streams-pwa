@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 
 // Ad Types
 export interface Ad {
@@ -336,4 +337,87 @@ export async function updateUserTier(userId: string, tier: 'free' | 'premium') {
     }
 
     console.log("Upgrade successful!");
+}
+
+// --- 10. WATCH LATER / MY LIST ---
+export async function addToWatchLater(userId: string, videoId: string) {
+    const { error } = await supabase
+        .from('watch_later')
+        .insert([{ user_id: userId, video_id: videoId }]);
+    if (error) throw error;
+}
+
+export async function removeFromWatchLater(userId: string, videoId: string) {
+    const { error } = await supabase
+        .from('watch_later')
+        .delete()
+        .eq('user_id', userId)
+        .eq('video_id', videoId);
+    if (error) throw error;
+}
+
+export async function getWatchLater(userId: string) {
+    const { data, error } = await supabase
+        .from('watch_later')
+        .select(`
+            video_id,
+            videos (*)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Error fetching watch later:", error);
+        return [];
+    }
+
+    // Transform joined data back to Video[]
+    return data.map((item: any) => item.videos).filter(Boolean) as Video[];
+}
+
+export async function checkInWatchLater(userId: string, videoId: string) {
+    const { data, error } = await supabase
+        .from('watch_later')
+        .select('video_id')
+        .eq('user_id', userId)
+        .eq('video_id', videoId)
+        .single();
+
+    if (error && error.code !== 'PGRST116') return false; // PGRST116 is "No rows found"
+    return !!data;
+}
+
+// --- 11. WATCH HISTORY ---
+export async function addToHistory(userId: string, videoId: string) {
+    // This will upsert (update if exists, insert if not) because we defined ON CONFLICT in SQL
+    const { error } = await supabase
+        .from('watch_history')
+        .upsert([{ user_id: userId, video_id: videoId, last_watched_at: new Date().toISOString() }], { onConflict: 'user_id, video_id' });
+
+    if (error) console.error("Error saving history:", error);
+}
+
+export async function getWatchHistory(userId: string) {
+    const { data, error } = await supabase
+        .from('watch_history')
+        .select(`
+            video_id,
+            videos (*)
+        `)
+        .eq('user_id', userId)
+        .order('last_watched_at', { ascending: false })
+        .limit(20); // Limit to last 20 videos
+
+    if (error) {
+        console.error("Error fetching history:", error);
+        return [];
+    }
+
+    return data.map((item: any) => item.videos).filter(Boolean) as Video[];
+}
+
+// --- 12. ACCOUNT DELETION ---
+export async function deleteMyAccount() {
+    const { error } = await supabase.rpc('delete_my_account');
+    if (error) throw error;
 }

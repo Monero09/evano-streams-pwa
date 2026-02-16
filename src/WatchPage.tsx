@@ -245,16 +245,17 @@ function VideoPlayer({ videoSrc, preRollSrc, poster }: PlayerProps) {
 // ==========================================
 
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchVideos, getAdById, type Video } from './lib/api';
+import { fetchVideos, getAdById, addToWatchLater, removeFromWatchLater, checkInWatchLater, addToHistory, type Video } from './lib/api';
 import { useAuth } from './components/AuthProvider';
 
 export default function WatchPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { tier } = useAuth();
+    const { user, tier } = useAuth(); // Get user
     const [videos, setVideos] = useState<Video[]>([]);
     const [loading, setLoading] = useState(true);
     const [adUrl, setAdUrl] = useState<string | undefined>(undefined);
+    const [inMyList, setInMyList] = useState(false); // State for My List
 
     useEffect(() => {
         fetchVideos().then(data => {
@@ -265,11 +266,18 @@ export default function WatchPage() {
 
     const video = videos.find(v => v.id === id);
 
+    // Effect for Views, History, and Ads
     useEffect(() => {
         if (video) {
             import('./lib/api').then(mod => mod.incrementView(video.id));
 
-            // Load pre-roll ad if: 1) User is free tier, 2) Video has ads enabled, 3) Ad is assigned
+            // 1. History & Check List (if logged in)
+            if (user) {
+                addToHistory(user.id, video.id);
+                checkInWatchLater(user.id, video.id).then(setInMyList);
+            }
+
+            // 2. Load pre-roll ad
             if (tier === 'free' && video.ads_enabled && video.preroll_ad_id) {
                 getAdById(video.preroll_ad_id).then(ad => {
                     if (ad && ad.type === 'video') {
@@ -278,7 +286,7 @@ export default function WatchPage() {
                 });
             }
         }
-    }, [video, tier]);
+    }, [video, tier, user]);
 
     if (loading) return <div style={{ color: 'white', padding: 20 }}>Loading...</div>;
 
@@ -288,9 +296,28 @@ export default function WatchPage() {
 
     const recommended = videos.filter(v => v.id !== video.id);
 
+    const toggleMyList = async () => {
+        if (!user) {
+            navigate('/login');
+            return;
+        }
+        try {
+            if (inMyList) {
+                await removeFromWatchLater(user.id, video.id);
+                setInMyList(false);
+            } else {
+                await addToWatchLater(user.id, video.id);
+                setInMyList(true);
+            }
+        } catch (e) {
+            console.error("List toggle failed", e);
+        }
+    };
+
     return (
         <>
             <main className="watch-root">
+                {/* ... (navigation button) ... */}
                 <button
                     onClick={() => navigate('/')}
                     className="nav-icon-btn"
@@ -312,8 +339,36 @@ export default function WatchPage() {
                 </section>
 
                 <section className="watch-meta">
-                    <h1 className="watch-title">{video.title}</h1>
-                    <div className="watch-sub">{video.category} • {new Date(video.created_at).toLocaleDateString()}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                            <h1 className="watch-title">{video.title}</h1>
+                            <div className="watch-sub">{video.category} • {new Date(video.created_at).toLocaleDateString()}</div>
+                        </div>
+                        <button
+                            onClick={toggleMyList}
+                            style={{
+                                background: inMyList ? '#FF6A00' : 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: 40,
+                                height: 40,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                marginTop: 10,
+                                transition: 'all 0.2s',
+                                color: 'white'
+                            }}
+                            title={inMyList ? "Remove from My List" : "Add to My List"}
+                        >
+                            {inMyList ? (
+                                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            ) : (
+                                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            )}
+                        </button>
+                    </div>
                     <p className="watch-desc">{video.description}</p>
                 </section>
 
